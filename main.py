@@ -10,6 +10,21 @@ import datetime
 import csv
 from postgis import Polygon, MultiPolygon
 from postgis.psycopg import register
+import random
+
+
+def infected_luck() -> bool:
+    return random.randint(0, 100) > 90
+
+
+def get_first_infected() -> List[int]:
+    sql = 'select distinct taxi,ts from tracks, cont_aad_caop2018 where st_contains(proj_boundary, st_startpoint(proj_track)) and concelho like \'LISBOA\' order by 2 limit 10'
+    cursor_psql.execute(sql)
+    lis_taxis = cursor_psql.fetchall()
+    sql = 'select distinct taxi,ts from tracks, cont_aad_caop2018 where st_contains(proj_boundary, st_startpoint(proj_track)) and concelho like \'PORTO\' order by 2 limit 10'
+    cursor_psql.execute(sql)
+    por_taxis = cursor_psql.fetchall()
+    return [lis_taxis[random.randint(0, 9)][0], por_taxis[random.randint(0, 9)][0]]
 
 
 def animate(i: int):
@@ -62,7 +77,7 @@ for row in results:
         ax.plot(xs, ys, color='black', lw='0.2')
 
 
-sql = """select st_astext(proj_track),ts from tracks where taxi='20000333' order by ts"""
+sql = """select st_astext(proj_track),ts,taxi from tracks where taxi='20000333' order by ts"""
 cursor_psql.execute(sql)
 results = cursor_psql.fetchall()
 # x, y = [], []
@@ -81,7 +96,7 @@ for i in offsets:
     end_fillers = [[float(0), float(0)] for _ in range(diff)]
     i.append(end_fillers)
 
-offsets = list(map(list,zip(*offsets))) #invert matrix
+offsets = list(map(list, zip(*offsets)))  # invert matrix
 
 print(offsets[0][0])
 

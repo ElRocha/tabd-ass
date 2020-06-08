@@ -54,7 +54,7 @@ for row in results:
         ax.plot(xs, ys, color='black', lw='0.2')
         
 offsets = []
-with open('offsets_do_prof.csv','r') as fp:
+with open('offsets.csv','r') as fp:
     reader = csv.reader(fp)
     i = 0
     for row in reader:

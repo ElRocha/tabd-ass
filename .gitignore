@@ -127,3 +127,8 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+
+
+offsets.csv
+offsets_do_prof.csv

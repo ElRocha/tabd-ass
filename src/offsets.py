@@ -1,58 +1,68 @@
+from config import DATABASE
 import numpy as np
 import psycopg2
 
 from postgis.psycopg import register
-from config import *
+from datetime import datetime, timezone
 
-########
-# CUSTOM PARAMS
-step = 10
+def get_taxis(cursor, n_record):
+    taxis_x, taxis_y = {}, {}
+    cursor.execute('select distinct taxi from tracks order by 1')
+    for row in cursor.fetchall():
+        taxi = int(row[0])
+        taxis_x[taxi] = np.zeros(n_record)
+        taxis_y[taxi] = np.zeros(n_record)
+    return (taxis_x, taxis_y)
 
-ts_i = 1570665600
-ts_f = 1570667000 # 1570752000
-
-array_size = int((23*60+20)/step) #int(24*60*60/step)
-########
-
-conn = psycopg2.connect(database=DB_NAME, user=USER_NAME)
-register(conn)
-cursor = conn.cursor()
-
-cursor.execute('select distinct taxi from tracks order by 1')
-results = cursor.fetchall()
-
-taxis_x = {}
-taxis_y = {}
-
-for row in results:
-    taxi = int(row[0])
-    taxis_x[taxi] = np.zeros(array_size)
-    taxis_y[taxi] = np.zeros(array_size)
-
-for i in range(ts_i, ts_f, step):
-    cur_ts = str(i)
+def get_points_in_time(cursor, t, ts_s, step, taxis_x, taxis_y):
+    t_str = str(t)
     cursor.execute(
-        f"select taxi, st_pointn(proj_track, {cur_ts}-ts) from tracks where "
-        f"ts < {cur_ts} and ts + st_numpoints(proj_track) > {cur_ts}"
+        f"select taxi, st_pointn(proj_track, {t_str}-ts) from tracks where "
+        f"ts < {t_str} and ts + st_numpoints(proj_track) > {t_str}"
     )
-    results = cursor.fetchall()
-    for row in results:
+    for row in cursor.fetchall():
         taxi = int(row[0])
         x, y = row[1].coords
-        taxis_x[taxi][int((i-ts_i)/10)] = x
-        taxis_y[taxi][int((i-ts_i)/10)] = y
+        taxis_x[taxi][int((t-ts_s)/step)] = x
+        taxis_y[taxi][int((t-ts_s)/step)] = y
 
-offsets = []
+def generate(step, start_time, end_time):
+    # generate timestamps and number of records
+    ts_s   = datetime(2019, 10, 10, start_time[0], start_time[1], start_time[2])
+    ts_e   = datetime(2019, 10, 10, end_time[0], end_time[1], end_time[2])
+    t_diff = ts_e - ts_s
 
-for i in range(array_size):
-    l = []
-    for j in taxis_x:
-        l.append([taxis_x[j][i], taxis_y[j][i]])
-    offsets.append(l)
+    ts_s = int(ts_s.replace(tzinfo = timezone.utc).timestamp())
+    ts_e = int(ts_e.replace(tzinfo = timezone.utc).timestamp())
 
-with open('offsets.csv','w') as fp:
-    for i in offsets:
-        print(f"{i[0][0]} {i[0][1]}", end='', file=fp)
-        for j in range(1, len(i)):
-            print(f",{i[j][0]} {i[j][1]}", end='', file=fp)
-        print("", file=fp)
+    n_record = int(t_diff.seconds / step)
+
+    # database
+    conn = psycopg2.connect(database=DATABASE['dbname'], user=DATABASE['user'], password=DATABASE['password'])
+    register(conn)
+    cursor = conn.cursor()
+
+    # build offsets
+    taxis_x, taxis_y = get_taxis(cursor, n_record)
+
+    for t in range(ts_s, ts_e, step):
+        get_points_in_time(cursor, t, ts_s, step, taxis_x, taxis_y)
+
+    offsets = []
+    for rec in range(n_record):
+        coords = []
+        for taxi in taxis_x:
+            coords.append([taxis_x[taxi][rec], taxis_y[taxi][rec]])
+        offsets.append(coords)
+
+    # save offsets
+    fp_name = f"{ts_s}-{ts_e}.csv"
+    with open(fp_name, 'w') as fp:
+        for rec in offsets:
+            print(f"{rec[0][0]} {rec[0][1]}", end='', file=fp)
+            for i in range(1, len(rec)):
+                print(f",{rec[i][0]} {rec[i][1]}", end='', file=fp)
+            print("", file=fp)
+
+    conn.close()
+    return fp_name

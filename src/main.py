@@ -1,6 +1,6 @@
 import sys
 import argparse
-#import offsets
+import offsets
 
 from util import *
 from config import DEFAULTS
@@ -27,7 +27,7 @@ fp_offsets = 'offsets_cached.csv' # offsets for default params
 
 if args.step != DEFAULTS['step'] or args.start != DEFAULTS['start'] or args.end != DEFAULTS['end']:
     print('Calculating offsets... ', end='')
-    # fp_offsets = offsets.generate(args)
+    fp_offsets = offsets.generate(args.step, args.start, args.end)
     print('DONE!')
 
 #

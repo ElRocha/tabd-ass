@@ -26,9 +26,9 @@ xs_min, xs_max, ys_min, ys_max = -120000, 165000, -310000, 285000
 width_in_inches = (xs_max-xs_min)/0.0254*1.1
 height_in_inches = (ys_max-ys_min)/0.0254*1.1
 
-fig, (ax,ax2) = plt.subplots(1,2,figsize=(width_in_inches*scale*3, height_in_inches*scale))
-ax.axis('off')
-ax.set(xlim=(xs_min, xs_max), ylim=(ys_min, ys_max))
+fig, (ax1,ax2) = plt.subplots(1,2,figsize=(width_in_inches*scale*3, height_in_inches*scale))
+ax1.axis('off')
+ax1.set(xlim=(xs_min, xs_max), ylim=(ys_min, ys_max))
 
 cursor_psql = conn.cursor()
 
@@ -46,17 +46,17 @@ for row in results:
             for (x, y) in xys:
                 xs.append(x)
                 ys.append(y)
-            ax.plot(xs, ys, color='black', lw='0.2')
+            ax1.plot(xs, ys, color='black', lw='0.2')
     if type(geom) is Polygon:
         xys = geom[0].coords
         xs, ys = [], []
         for (x, y) in xys:
             xs.append(x)
             ys.append(y)
-        ax.plot(xs, ys, color='black', lw='0.2')
+        ax1.plot(xs, ys, color='black', lw='0.2')
 
 offsets = []
-with open('offsets.csv','r') as fp:
+with open('offsets_do_prof.csv','r') as fp:
     reader = csv.reader(fp)
     i = 0
     for row in reader:
@@ -73,9 +73,12 @@ for i in offsets[0]:
     x.append(i[0])
     y.append(i[1])
 
-scat = ax.scatter(x, y, s=2, color='green')
+scat = ax1.scatter(x, y, s=2, color='green')
+
 ax2.set(xlim=(0,2),ylim=(0,2*1.2))
 g, = ax2.plot([0],[2])
+ax2.set_xlabel('iteration')
+ax2.set_ylabel('infected taxis')
 
 step = 10
 
@@ -97,15 +100,21 @@ def animate(i):
     global color
     global proximity
 
-    # check each taxi neighbourhood
+    # update iteration data
+    inf_rate = math.ceil(60 / step)
+    new_infections = set()
+
     for taxi in infected:
         for taxi2 in susceptible:
             xy1 = [float(x) for x in offsets[i][taxi]]
             xy2 = [float(x) for x in offsets[i][taxi2]]
 
+            # ignore if any of the taxis isn't active
             if (xy1[0] == 0 and xy1[1]== 0) or (xy2[0]== 0 and xy2[1]==0):
+                proximity[taxi][taxi2] = 0
                 continue
 
+            # update proximity counter
             d = eucl_dist(xy1[0], xy1[1], xy2[0], xy2[1])
 
             if taxi2 in proximity[taxi]:
@@ -119,30 +128,24 @@ def animate(i):
                 else:
                     proximity[taxi][taxi2] = 0
 
-    # check new infections
-    inf_rate = math.ceil(60/step)
-
-    new_infections = set()
-    for taxi in infected:
-        for taxi2 in susceptible:
+            # new infection ?
             inf_prob = math.floor(proximity[taxi][taxi2] / inf_rate) * 10
             inf_prob = min( [100, inf_prob] )
 
             if test_infection(inf_prob):
                 new_infections.add(taxi2)
+                color[taxi2] = 'red'
 
-    infected    = infected | new_infections
+    # update sets
+    infected = infected | new_infections
     susceptible = susceptible - new_infections
 
-    for t in infected:
-        color[t] = 'red'
-
-    # scatter
-    ax.set_title( dt.utcfromtimestamp(ts_i+i*10) )
+    # scatter plot
+    ax1.set_title(dt.utcfromtimestamp(ts_i+i*10))
     scat.set_offsets(offsets[i])
     scat.set_color(color)
 
-    # curve
+    # curve plot
     g.set_xdata(np.append(g.get_xdata(),i))
     g.set_ydata(np.append(g.get_ydata(),len(infected)))
     ax2.set_xlim((0,len(g.get_xdata())))
@@ -150,12 +153,12 @@ def animate(i):
 
     print(f"it: {i}, infected: {len(infected)}")
 
-
 anim = FuncAnimation(fig,
                      animate,
-                     interval=100,
+                     interval=500,
                      frames=range(len(offsets)),
-                     repeat=False)
+                     repeat=False,
+                     cache_frame_data=False) # nothing is the same between frames
 
 plt.draw()
 plt.show()

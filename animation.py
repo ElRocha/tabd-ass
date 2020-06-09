@@ -26,7 +26,7 @@ xs_min, xs_max, ys_min, ys_max = -120000, 165000, -310000, 285000
 width_in_inches = (xs_max-xs_min)/0.0254*1.1
 height_in_inches = (ys_max-ys_min)/0.0254*1.1
 
-fig, ax = plt.subplots(figsize=(width_in_inches*scale, height_in_inches*scale))
+fig, (ax,ax2) = plt.subplots(1,2,figsize=(width_in_inches*scale*3, height_in_inches*scale))
 ax.axis('off')
 ax.set(xlim=(xs_min, xs_max), ylim=(ys_min, ys_max))
 
@@ -74,6 +74,9 @@ for i in offsets[0]:
     y.append(i[1])
 
 scat = ax.scatter(x, y, s=2, color='green')
+ax2.set(xlim=(0,2),ylim=(0,2*1.2))
+g, = ax2.plot([0],[2])
+
 step = 10
 
 n_taxis     = len(offsets[0])
@@ -99,17 +102,20 @@ def animate(i):
         for taxi2 in susceptible:
             xy1 = [float(x) for x in offsets[i][taxi]]
             xy2 = [float(x) for x in offsets[i][taxi2]]
-            d = eucl_dist(xy1[0], xy1[1], xy2[0], xy2[1])
+            if (xy1[0] == 0 and xy1[1]== 0) or (xy2[0]== 0 and xy2[1]==0):
+                proximity[taxi][taxi2] = 0
+            else:
+                d = eucl_dist(xy1[0], xy1[1], xy2[0], xy2[1])
 
-            if taxi2 in proximity[taxi]:
-                if d < 50:
-                    proximity[taxi][taxi2] += 1
+                if taxi2 in proximity[taxi]:
+                    if d < 50:
+                        proximity[taxi][taxi2] += 1
+                    else:
+                        proximity[taxi][taxi2] = 0
+                elif d < 50:
+                    proximity[taxi][taxi2] = 1
                 else:
                     proximity[taxi][taxi2] = 0
-            elif d < 50:
-                proximity[taxi][taxi2] = 1
-            else:
-                proximity[taxi][taxi2] = 0
 
     # check new infections
     inf_rate = math.ceil(60/step)
@@ -132,13 +138,17 @@ def animate(i):
     ax.set_title( dt.utcfromtimestamp(ts_i+i*10) )
     scat.set_offsets(offsets[i])
     scat.set_color(color)
+    g.set_xdata(np.append(g.get_xdata(),i))
+    g.set_ydata(np.append(g.get_ydata(),len(infected)))
+    ax2.set_xlim((0,len(g.get_xdata())))
+    ax2.set_ylim((0,len(infected)*1.2))
 
     print(f"it: {i}, infected: {len(infected)}")
 
 
 anim = FuncAnimation(fig,
                      animate,
-                     interval=1000,
+                     interval=20,
                      frames=range(len(offsets)),
                      repeat=False)
 

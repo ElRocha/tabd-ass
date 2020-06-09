@@ -102,17 +102,19 @@ def animate(i):
         for taxi2 in susceptible:
             xy1 = [float(x) for x in offsets[i][taxi]]
             xy2 = [float(x) for x in offsets[i][taxi2]]
-            if (xy1[0] == 0 and xy1[1]== 0) or (xy2[0]== 0 and xy2[1]==0):
-                proximity[taxi][taxi2] = 0
-            else:
-                d = eucl_dist(xy1[0], xy1[1], xy2[0], xy2[1])
 
-                if taxi2 in proximity[taxi]:
-                    if d < 50:
-                        proximity[taxi][taxi2] += 1
-                    else:
-                        proximity[taxi][taxi2] = 0
-                elif d < 50:
+            if (xy1[0] == 0 and xy1[1]== 0) or (xy2[0]== 0 and xy2[1]==0):
+                continue
+
+            d = eucl_dist(xy1[0], xy1[1], xy2[0], xy2[1])
+
+            if taxi2 in proximity[taxi]:
+                if d < 50:
+                    proximity[taxi][taxi2] += 1
+                else:
+                    proximity[taxi][taxi2] = 0
+            else:
+                if d < 50:
                     proximity[taxi][taxi2] = 1
                 else:
                     proximity[taxi][taxi2] = 0
@@ -135,9 +137,12 @@ def animate(i):
     for t in infected:
         color[t] = 'red'
 
+    # scatter
     ax.set_title( dt.utcfromtimestamp(ts_i+i*10) )
     scat.set_offsets(offsets[i])
     scat.set_color(color)
+
+    # curve
     g.set_xdata(np.append(g.get_xdata(),i))
     g.set_ydata(np.append(g.get_ydata(),len(infected)))
     ax2.set_xlim((0,len(g.get_xdata())))
@@ -148,7 +153,7 @@ def animate(i):
 
 anim = FuncAnimation(fig,
                      animate,
-                     interval=20,
+                     interval=100,
                      frames=range(len(offsets)),
                      repeat=False)
 

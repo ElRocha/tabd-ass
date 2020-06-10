@@ -30,7 +30,7 @@ fp_offsets = filename(args.step, args.start, args.end)
 fp_first10 = 'f10-' + fp_offsets
 
 if not os.path.isfile('data/' + fp_offsets):
-    print('Calculating offsets... ')
+    print('Generating offsets... ')
     fp_offsets, fp_first10 = generate(args.step, args.start, args.end)
 else:
     print('Found offsets for current parameter configuration! Skiping generation.')

@@ -59,7 +59,7 @@ def animate(i):
     susceptible = susceptible - new_infections
 
     # scatter plot
-    ax1.set_title(datetime.utcfromtimestamp(ts_s+i*10))
+    ax1.set_title(datetime.utcfromtimestamp(ts_s+i*step))
     scat.set_offsets(offsets[i])
     scat.set_color(color)
 

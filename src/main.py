@@ -1,6 +1,7 @@
 import sys
 import argparse
 import offsets
+import animation
 
 from util import *
 from config import DEFAULTS
@@ -33,6 +34,7 @@ if args.step != DEFAULTS['step'] or args.start != DEFAULTS['start'] or args.end 
 #
 # Animate!
 #
+animation.generate(step)
 
 
 # How am I gonna use this?

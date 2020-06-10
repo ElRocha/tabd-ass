@@ -1,4 +1,7 @@
-from datetime import datetime
+import math
+import random
+
+from datetime import datetime, timezone
 
 """
 Custom cmd-argument validation function.
@@ -32,3 +35,26 @@ def validate_args(args):
         return False
 
     return True
+
+"""
+Euclidean distance
+
+Used to calculate the proximity for each pair of taxis.
+"""
+def eucl_dist(x1, y1, x2, y2):
+    return math.sqrt((x2-x1)**2 + (y2-y1)**2)
+
+"""
+Biased coin toss
+
+Used to decide if some taxi gets infected. Expects a
+probability value 'bias' between 0 and 100.
+"""
+def coin_toss(bias):
+    return random.random() < (bias/100)
+
+"""
+Get utc timestamps for some datetime
+"""
+def utc_timestamp(dt):
+    return dt.replace(tzinfo = timezone.utc).timestamp()

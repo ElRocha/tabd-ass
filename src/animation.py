@@ -1,46 +1,22 @@
+import csv
 import numpy as np
 import matplotlib.pyplot as plt
 import psycopg2
+import random
 import math
-from random import random, randrange,randint
-from matplotlib.animation import FuncAnimation
-from datetime import datetime as dt
-import csv
-from postgis import Polygon, MultiPolygon
+
+from config import DATABASE
+from util import eucl_dist, coin_toss
+from datetime import datetime, timezone
 from postgis.psycopg import register
-
-from config import *
-
-
-def eucl_dist(x1, y1, x2, y2):
-    return math.sqrt((x2-x1)**2 + (y2-y1)**2)
-
-
-def test_infection(rate):
-    return random() < (rate/100)
-
-def select_first_infected():
-    global cursor_psql
-
-    sql = 'select distinct taxi from tracks order by 1'
-    cursor_psql.execute(sql)
-    all_taxis = cursor_psql.fetchall()
-    taxi_dict = {row[0]: i for i,row in enumerate(all_taxis)}
-
-    sql = 'select distinct taxi,ts from tracks, cont_aad_caop2018 where st_contains(proj_boundary, st_startpoint(proj_track)) and concelho like \'LISBOA\' order by 2 limit 10'
-    cursor_psql.execute(sql)
-    lis_taxis = cursor_psql.fetchall()
-    sql = 'select distinct taxi,ts from tracks, cont_aad_caop2018 where st_contains(proj_boundary, st_startpoint(proj_track)) and concelho like \'PORTO\' order by 2 limit 10'
-    cursor_psql.execute(sql)
-    por_taxis = cursor_psql.fetchall()
-    return [taxi_dict[lis_taxis[randint(0, 9)][0]], taxi_dict[por_taxis[randint(0, 9)][0]]]
-
+from postgis import Polygon, MultiPolygon
+from matplotlib.animation import FuncAnimation
 
 def animate(i):
-    global infected
-    global susceptible
-    global color
-    global proximity
+    global ax1, ax2, g, scat
+    global step, ts_s
+    global offsets
+    global infected, susceptible, color, proximity
 
     # update iteration data
     inf_rate = math.ceil(60 / step)
@@ -74,7 +50,7 @@ def animate(i):
             inf_prob = math.floor(proximity[taxi][taxi2] / inf_rate) * 10
             inf_prob = min([100, inf_prob])
 
-            if test_infection(inf_prob):
+            if coin_toss(inf_prob):
                 new_infections.add(taxi2)
                 color[taxi2] = 'red'
 
@@ -83,7 +59,7 @@ def animate(i):
     susceptible = susceptible - new_infections
 
     # scatter plot
-    ax1.set_title(dt.utcfromtimestamp(ts_i+i*10))
+    ax1.set_title(datetime.utcfromtimestamp(ts_s+i*10))
     scat.set_offsets(offsets[i])
     scat.set_color(color)
 
@@ -93,48 +69,72 @@ def animate(i):
     ax2.set_xlim((0, len(g.get_xdata())))
     ax2.set_ylim((0, len(infected)*1.2))
 
-    print(f"it: {i}, infected: {len(infected)}")
+    #print(f"iteration: {i}, infected: {len(infected)}")
 
+def sql_boundaries(cursor):
+    cursor.execute('select distrito,st_union(proj_boundary) from cont_aad_caop2018 group by distrito')
+    return cursor.fetchall()
 
-def generate(increment, save=False):
-    global fig
-    global ax1
-    global ax2
-    global scat
-    global g
-    global step
-    global n_taxis
-    global infected
-    global susceptible
-    global color
-    global proximity
-    global ts_i
+def read_offsets(fp_offsets):
+    offsets = []
+    with open('data/' + fp_offsets, 'r') as fp:
+        reader = csv.reader(fp)
+        for row in reader:
+            l = []
+            for coords in row:
+                x, y = coords.split()
+                l.append([float(x), float(y)])
+            offsets.append(l)
+    return offsets
+
+def read_first10(fp_first10):
+    first10 = []
+    with open('data/' + fp_first10, 'r') as fp:
+        reader = csv.reader(fp)
+        for row in reader:
+            l = []
+            for taxi in row:
+                l.append(int(taxi))
+            first10.append(l)
+    return first10
+
+def start(inc, delay, n_infected, start_time, fp_offsets, fp_first10, save=False):
+    # define globals required for the animation function
+    global ax1, ax2, g, scat
+    global step, ts_s
     global offsets
-    global cursor_psql
-    global first_infected
+    global infected, susceptible, color, proximity
 
-    ts_i = 1570665601
+    # step
+    step = inc
+
+    # start timestamp
+    dt_s = datetime(2019, 10, 10, start_time[0], start_time[1], start_time[2])
+    ts_s = int(dt_s.replace(tzinfo = timezone.utc).timestamp())
+
+    # scatter plot
     scale = 1/3000000
-    conn = psycopg2.connect(database=DB_NAME, user=USER_NAME)
-    register(conn)
-
     xs_min, xs_max, ys_min, ys_max = -120000, 165000, -310000, 285000
-    width_in_inches = (xs_max-xs_min)/0.0254*1.1
-    height_in_inches = (ys_max-ys_min)/0.0254*1.1
+    width_in_inches  = (xs_max - xs_min) / 0.0254*1.1
+    height_in_inches = (ys_max - ys_min) / 0.0254*1.1
 
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(
-        width_in_inches*scale*3, height_in_inches*scale))
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(width_in_inches*scale*3, height_in_inches*scale))
+
     ax1.axis('off')
     ax1.set(xlim=(xs_min, xs_max), ylim=(ys_min, ys_max))
 
-    cursor_psql = conn.cursor()
+    # curve plot
+    ax2.set(xlim=(0, 2), ylim=(0, 2*1.2))
+    g, = ax2.plot([0], [0])
+    ax2.set_xlabel('iteration')
+    ax2.set_ylabel('infected taxis')
 
-    sql = "select distrito,st_union(proj_boundary) from cont_aad_caop2018 group by distrito"
+    # draw map boundaries
+    conn = psycopg2.connect(database=DATABASE['dbname'], user=DATABASE['user'], password=DATABASE['password'])
+    register(conn)
+    cursor = conn.cursor()
 
-    cursor_psql.execute(sql)
-    results = cursor_psql.fetchall()
-    xs, ys = [], []
-    for row in results:
+    for row in sql_boundaries(cursor):
         geom = row[1]
         if type(geom) is MultiPolygon:
             for pol in geom:
@@ -152,58 +152,47 @@ def generate(increment, save=False):
                 ys.append(y)
             ax1.plot(xs, ys, color='black', lw='0.2')
 
-    offsets = []
-    with open('offsets_do_prof.csv', 'r') as fp:
-        reader = csv.reader(fp)
-        i = 0
-        for row in reader:
-            l = []
-            for j in row:
-                x, y = j.split()
-                x = float(x)
-                y = float(y)
-                l.append([x, y])
-            offsets.append(l)
+    conn.close()
 
-    x, y = [], []
-    for i in offsets[0]:
-        x.append(i[0])
-        y.append(i[1])
+    # read file data
+    offsets = read_offsets(fp_offsets)
+    first10 = read_first10(fp_first10)
 
-    scat = ax1.scatter(x, y, s=2, color='green')
-
-    ax2.set(xlim=(0, 2), ylim=(0, 2*1.2))
-    g, = ax2.plot([0], [0])
-    ax2.set_xlabel('iteration')
-    ax2.set_ylabel('infected taxis')
-
-    step = increment
-
+    # animation vars
     n_taxis = len(offsets[0])
     infected = set()
     susceptible = set([t for t in range(n_taxis)])
     color = ['green' for _ in range(n_taxis)]
     proximity = {t: {} for t in range(n_taxis)}
 
-    # 1 Porto and Lisbon taxi as infected
-    first_infected = select_first_infected()
-    infected.add(first_infected[0])
-    susceptible.remove(first_infected[0])
-    infected.add(first_infected[1])
-    susceptible.remove(first_infected[1])
+    # initially infected taxis
+    for concelho in first10:
+        for idx in random.sample(range(10), n_infected):
+            taxi = concelho[idx]
+            infected.add(taxi)
+            susceptible.remove(taxi)
+            color[taxi] = 'red'
 
-    anim = FuncAnimation(fig,
-                         animate,
-                         interval=10,
-                         frames=range(len(offsets)),
-                         repeat=False,
-                         cache_frame_data=False)  # nothing is the same between frames
+    # draw taxis first position
+    x0, y0 = [], []
+    for i in offsets[0]:
+        x0.append(i[0])
+        y0.append(i[1])
+
+    scat = ax1.scatter(x0, y0, s=2, color=color)
+
+    # animate !
+    anim = FuncAnimation(
+        fig,
+        animate,
+        interval=delay,
+        frames=range(len(offsets)),
+        repeat=False,
+        cache_frame_data=False # nothing is the same between frames
+    )
 
     if save:
         anim.save('animation.mp4')
 
     plt.draw()
     plt.show()
-
-if __name__ == "__main__":
-    generate()

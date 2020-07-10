@@ -9,7 +9,7 @@
     -> José Rocha       (201503229)
 
 
----- Requerimentos
+---- Requisitos
 
     Para compilação e execução do nosso programa é necessário
     a instalação do 'postgresql', 'postgis', 'Python 3.8.3' e

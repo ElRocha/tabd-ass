@@ -52,7 +52,7 @@ def generate(step, start_time, end_time):
     ts_s = int(utc_timestamp(ts_s))
     ts_e = int(utc_timestamp(ts_e))
 
-    n_record = int(t_diff.seconds / step)
+    n_record = int(t_diff.seconds / step) + 5 # give some space to be sure
 
     # database
     conn = psycopg2.connect(database=DATABASE['dbname'], user=DATABASE['user'], password=DATABASE['password'])

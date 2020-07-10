@@ -38,7 +38,7 @@
 
 ---- Configuração
 
-    Dentro do postgresql deverá exsistir uma base de dados
+    Dentro do postgresql deverá existir uma base de dados
     com os dados taxi_stands e cont_aad_caop2018. Esta base
     de dados deve estar configurada com a extensão do postgis
     e com os indíces e projeções apropriadas (como visto nas
@@ -108,3 +108,9 @@
 
       -> 60s step + defaults
          $ python --step 60
+
+    Para utilizar estes ficheiros é apenas necessário
+    descompactar o ficheiro cached.zip dentro do diretório
+    'src/data/':
+
+       $ unzip cached.zip

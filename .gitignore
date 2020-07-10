@@ -1,7 +1,6 @@
 db_setup.txt
 errors.txt
 config.py
-src/data/*.csv
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
